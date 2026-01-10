@@ -2,6 +2,7 @@ from openai import OpenAI
 import os
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
 def generate_briefing(market_articles, political_articles):
 
@@ -26,8 +27,9 @@ Style:
 - No emojis
 """
 
+    model = os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
     response = client.chat.completions.create(
-        model="gpt-4",
+        model=model,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3
     )
