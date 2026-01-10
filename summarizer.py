@@ -14,6 +14,10 @@ GROK_API_URL = os.getenv("GROK_API_URL", "https://api.grok.ai/v1/generate")
 
 def generate_briefing(market_articles, political_articles):
 
+    # Normalize inputs: join lists into strings
+    market_text = "\n".join(market_articles) if isinstance(market_articles, (list, tuple)) else (market_articles or "")
+    political_text = "\n".join(political_articles) if isinstance(political_articles, (list, tuple)) else (political_articles or "")
+
     prompt = f"""
 You are a professional financial news editor. Produce a concise, factual morning briefing for institutional/professional readers.
 
@@ -34,19 +38,19 @@ Rules:
 - Do not invent facts. If no relevant data exists, state "No data available" for that item.
 
 MARKET NEWS:
-{market_articles}
+{market_text}
 
 POLITICAL NEWS:
-{political_articles}
+{political_text}
 """
 
-    model = os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
+    model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
 
     # helper: Gemini (Google Generative Language API) fallback
     def call_gemini(input_text: str) -> str | None:
         if not GEMINI_API_KEY:
             return None
-        url = f"https://generativelanguage.googleapis.com/v1beta2/{GEMINI_MODEL}:generate?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta2/models/{GEMINI_MODEL}:generate?key={GEMINI_API_KEY}"
         body = {
             "prompt": {"text": input_text},
             "temperature": 0.3,
@@ -140,5 +144,5 @@ POLITICAL NEWS:
 
     # Final fallback: return the raw news content so the caller can still send something
     print("DEBUG: All AI providers failed — returning raw news content")
-    raw = "MARKET NEWS:\n" + (market_articles or "") + "\n\nPOLITICAL NEWS:\n" + (political_articles or "")
+    raw = "MARKET NEWS:\n" + (market_text or "") + "\n\nPOLITICAL NEWS:\n" + (political_text or "")
     return raw
