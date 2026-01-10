@@ -26,7 +26,7 @@ Style:
 - No emojis
 """
 
-    response = client.chat.create(
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3
