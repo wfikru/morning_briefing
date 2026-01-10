@@ -138,7 +138,7 @@ POLITICAL NEWS:
     if gemini_out:
         return gemini_out
 
-    return (
-        "Briefing unavailable: all AI providers failed or are unavailable. "
-        "Please check API keys and quota, and try again later."
-    )
+    # Final fallback: return the raw news content so the caller can still send something
+    print("DEBUG: All AI providers failed — returning raw news content")
+    raw = "MARKET NEWS:\n" + (market_articles or "") + "\n\nPOLITICAL NEWS:\n" + (political_articles or "")
+    return raw
