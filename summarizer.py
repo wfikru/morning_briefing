@@ -3,12 +3,12 @@ import openai
 import os
 import time
 import requests
+import traceback
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/text-bison-001")
-HF_MODEL = os.getenv("HF_MODEL", "tiiuae/falcon-7b-instruct")
+GEMINI_MODEL = os.getenv("GEMINI_API_MODEL", "gemini-1.0-pro-001")
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 GROK_API_URL = os.getenv("GROK_API_URL", "https://api.grok.ai/v1/generate")
 
@@ -62,28 +62,14 @@ POLITICAL NEWS:
                 return candidates[0].get("content")
             # older responses may use "output"
             return data.get("output", {}).get("text")
-        except Exception:
+        except Exception as e:
+            print("DEBUG: Gemini call failed:", repr(e))
+            try:
+                print("DEBUG: Gemini response:", r.status_code, r.text)
+            except Exception:
+                pass
+            print(traceback.format_exc())
             return None
-
-    # helper: Hugging Face Inference API fallback
-    def call_hf(input_text: str) -> str | None:
-        hf_token = os.getenv("HF_API_TOKEN")
-        url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-        headers = {"Authorization": f"Bearer {hf_token}"} if hf_token else {}
-        payload = {"inputs": input_text, "parameters": {"max_new_tokens": 400}}
-        try:
-            r = requests.post(url, headers=headers, json=payload, timeout=60)
-            r.raise_for_status()
-            data = r.json()
-            # HF can return text or an array with generated_text
-            if isinstance(data, list) and data and isinstance(data[0], dict):
-                return data[0].get("generated_text") or data[0].get("generated_text", None)
-            if isinstance(data, dict):
-                return data.get("generated_text") or data.get("generated_text", None)
-            return None
-        except Exception:
-            return None
-
 
     # helper: Grok fallback (generic HTTP POST). Configure GROK_API_URL and GROK_API_KEY.
     def call_grok(input_text: str) -> str | None:
@@ -109,7 +95,13 @@ POLITICAL NEWS:
                 if isinstance(first, dict):
                     return first.get("content") or first.get("text")
             return None
-        except Exception:
+        except Exception as e:
+            print("DEBUG: Grok call failed:", repr(e))
+            try:
+                print("DEBUG: Grok response:", r.status_code, r.text)
+            except Exception:
+                pass
+            print(traceback.format_exc())
             return None
 
     # 1) Try Grok first
@@ -129,25 +121,22 @@ POLITICAL NEWS:
             )
             return response.choices[0].message.content
 
-        except (openai.RateLimitError, openai.NotFoundError):
-            # try next fallback after retries exhausted
+        except (openai.RateLimitError, openai.NotFoundError) as e:
+            print("DEBUG: OpenAI rate limit or model error on attempt", attempt, repr(e))
+            print(traceback.format_exc())
             if attempt < max_attempts - 1:
                 time.sleep(2 ** attempt)
                 continue
             break
-        except Exception:
-            # unknown OpenAI error — proceed to fallbacks
+        except Exception as e:
+            print("DEBUG: OpenAI unknown error:", repr(e))
+            print(traceback.format_exc())
             break
 
     # 3) Try Gemini API
     gemini_out = call_gemini(prompt)
     if gemini_out:
         return gemini_out
-
-    # 3) Final fallback: Hugging Face Inference API
-    hf_out = call_hf(prompt)
-    if hf_out:
-        return hf_out
 
     return (
         "Briefing unavailable: all AI providers failed or are unavailable. "
