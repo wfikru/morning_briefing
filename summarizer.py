@@ -1,168 +1,161 @@
 from openai import OpenAI
-import openai
 import os
 import time
-import requests
 import traceback
+import requests  # still needed for any extras, but minimized
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_API_MODEL", "gemini-1.0-pro-001")
-GROK_API_KEY = os.getenv("GROK_API_KEY")
-GROK_API_URL = os.getenv("GROK_API_URL", "https://api.grok.ai/v1/generate")
+# ────────────────────────────────────────────────
+# Clients & Config (use env vars for security)
+# ────────────────────────────────────────────────
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+DEFAULT_OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")          # or gpt-4o
+
+# xAI / Grok — OpenAI compatible
+grok_client = OpenAI(
+    api_key=os.getenv("GROK_API_KEY"),
+    base_url="https://api.x.ai/v1",
+)
+GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-1-fast-reasoning")         # fast & capable; alt: grok-4
+
+# Gemini — native SDK (pip install google-generativeai)
+try:
+    import google.generativeai as genai
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")         # excellent 2026 default
+except ImportError:
+    print("WARNING: google-generativeai not installed → Gemini fallback disabled")
+    GEMINI_API_KEY = None
+
+def estimate_tokens(text: str) -> int:
+    """Rough token estimator (~4 chars/token)"""
+    return len(text) // 4 + 100  # conservative
 
 def generate_briefing(market_articles, political_articles):
-
-    # Normalize inputs: join lists into strings. Articles from news API are dicts.
+    """
+    Generate morning briefing with multi-LLM fallback.
+    Order: OpenAI → Grok → Gemini → raw text
+    """
+    # ────────────────────────────────────────────────
+    # Prepare input text
+    # ────────────────────────────────────────────────
     def _to_text(items):
         if not items:
             return ""
-        if isinstance(items, (list, tuple)):
-            out = []
-            for it in items:
-                if isinstance(it, dict):
-                    title = it.get("title") or it.get("headline") or ""
-                    desc = it.get("description") or it.get("summary") or ""
-                    if title and desc:
-                        out.append(f"{title} — {desc}")
-                    elif title:
-                        out.append(title)
-                    elif desc:
-                        out.append(desc)
-                else:
-                    out.append(str(it))
-            return "\n".join(out)
-        return str(items)
+        out = []
+        for item in items:
+            if isinstance(item, dict):
+                title = item.get("title") or item.get("headline") or ""
+                desc = item.get("description") or item.get("summary") or item.get("content") or ""
+                if title and desc:
+                    out.append(f"{title} — {desc}")
+                elif title:
+                    out.append(title)
+                elif desc:
+                    out.append(desc)
+            else:
+                out.append(str(item))
+        return "\n\n".join(out)
 
     market_text = _to_text(market_articles)
     political_text = _to_text(political_articles)
 
+    full_input = f"MARKET NEWS:\n{market_text}\n\nPOLITICAL NEWS:\n{political_text}"
+    token_est = estimate_tokens(full_input)
+
+    if token_est > 80000:
+        print(f"WARNING: Input very large (~{token_est} tokens) — may exceed limits or cost a lot")
+
+    # ────────────────────────────────────────────────
+    # Strong, consistent prompt
+    # ────────────────────────────────────────────────
     prompt = f"""
-You are a professional financial news editor. Produce a concise, factual morning briefing for institutional/professional readers.
+You are a professional financial news editor. Produce a concise, factual morning briefing for institutional readers.
 
-Output plain text only with these sections (in this order):
+Output plain text only — use exactly these sections (in order):
 
-- HEADLINE: one-line summary (<= 20 words)
-- TL;DR: one-sentence summary (<= 30 words)
-- MARKET OVERVIEW: 3 bullets (each 12–20 words). Include one key market statistic or percentage change if present.
-- POLITICAL DEVELOPMENTS: 2–3 bullets (each 12–20 words). Note material policy, regulatory, or geopolitical items.
-- WHAT TO WATCH TODAY: 3 short bullets listing events/times/indicators to monitor (or "None").
-- SOURCES: up to 3 short attributions or headlines (if available).
+- HEADLINE: one-line summary (≤20 words)
+- TL;DR: one-sentence summary (≤30 words)
+- MARKET OVERVIEW: 3 bullets (12–20 words each). Include ≥1 key stat/percentage if available.
+- POLITICAL DEVELOPMENTS: 2–3 bullets (12–20 words each). Focus on policy, regulation, geopolitics.
+- WHAT TO WATCH TODAY: 3 short bullets (events, times, indicators) or "None notable".
+- SOURCES: up to 3 short attributions/headlines (if relevant).
 
 Rules:
-- Use neutral, precise language; no emojis or sensational phrasing.
-- Prefer active voice and concrete numbers (e.g., "S&P 500 down 1.2%", "inflation 3.4% year-on-year").
-- If a claim is uncertain, mark it as "reporting: unconfirmed" or similar.
-- Keep the total briefing under ~300 words.
-- Do not invent facts. If no relevant data exists, state "No data available" for that item.
+- Neutral, precise language. Active voice. Concrete numbers (e.g. "S&P 500 -1.2%").
+- No emojis, hype, or invented facts.
+- If uncertain: mark " (reporting)" or "unconfirmed".
+- Total ≤ ~300 words.
 
-MARKET NEWS:
-{market_text}
-
-POLITICAL NEWS:
-{political_text}
+Input news:
+{full_input}
 """
 
-    model = os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
+    messages = [{"role": "user", "content": prompt}]
 
-    # helper: Gemini (Google Generative Language API) fallback
-    def call_gemini(input_text: str) -> str | None:
-        if not GEMINI_API_KEY:
-            return None
-        url = f"https://generativelanguage.googleapis.com/v1beta2/models/{GEMINI_MODEL}:generate?key={GEMINI_API_KEY}"
-        body = {
-            "prompt": {"text": input_text},
-            "temperature": 0.3,
-            "maxOutputTokens": 800,
-        }
-        try:
-            r = requests.post(url, json=body, timeout=30)
-            r.raise_for_status()
-            data = r.json()
-            # candidates -> content
-            candidates = data.get("candidates") or []
-            if candidates:
-                return candidates[0].get("content")
-            # older responses may use "output"
-            return data.get("output", {}).get("text")
-        except Exception as e:
-            print("DEBUG: Gemini call failed:", repr(e))
-            try:
-                print("DEBUG: Gemini response:", r.status_code, r.text)
-            except Exception:
-                pass
-            print(traceback.format_exc())
-            return None
-
-    # helper: Grok fallback (generic HTTP POST). Configure GROK_API_URL and GROK_API_KEY.
-    def call_grok(input_text: str) -> str | None:
-        if not GROK_API_KEY:
-            return None
-        url = GROK_API_URL
-        headers = {"Authorization": f"Bearer {GROK_API_KEY}", "Content-Type": "application/json"}
-        payload = {"prompt": input_text}
-        try:
-            r = requests.post(url, headers=headers, json=payload, timeout=30)
-            r.raise_for_status()
-            data = r.json()
-            # common response keys
-            for key in ("generated_text", "output", "result", "text", "content"):
-                if isinstance(data, dict) and key in data:
-                    val = data.get(key)
-                    if isinstance(val, str) and val:
-                        return val
-            # if candidates list present
-            candidates = data.get("candidates") if isinstance(data, dict) else None
-            if candidates and isinstance(candidates, list) and candidates:
-                first = candidates[0]
-                if isinstance(first, dict):
-                    return first.get("content") or first.get("text")
-            return None
-        except Exception as e:
-            print("DEBUG: Grok call failed:", repr(e))
-            try:
-                print("DEBUG: Grok response:", r.status_code, r.text)
-            except Exception:
-                pass
-            print(traceback.format_exc())
-            return None
-
-    # 1) Try Grok first
-    grok_out = call_grok(prompt)
-    if grok_out:
-        return grok_out
-
-    # 2) Try primary OpenAI with retries/backoff
+    # ────────────────────────────────────────────────
+    # 1. Try OpenAI first (best format consistency)
+    # ────────────────────────────────────────────────
     max_attempts = 3
     for attempt in range(max_attempts):
         try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
+            response = openai_client.chat.completions.create(
+                model=DEFAULT_OPENAI_MODEL,
+                messages=messages,
                 temperature=0.3,
-                max_tokens=800,
+                max_tokens=900,
+                # response_format={"type": "text"},  # can switch to "json_object" later
             )
-            return response.choices[0].message.content
+            return response.choices[0].message.content.strip()
 
-        except (openai.RateLimitError, openai.NotFoundError) as e:
-            print("DEBUG: OpenAI rate limit or model error on attempt", attempt, repr(e))
-            print(traceback.format_exc())
-            if attempt < max_attempts - 1:
-                time.sleep(2 ** attempt)
-                continue
-            break
         except Exception as e:
-            print("DEBUG: OpenAI unknown error:", repr(e))
-            print(traceback.format_exc())
-            break
+            print(f"OpenAI attempt {attempt+1} failed: {repr(e)}")
+            traceback.print_exc()
+            if attempt < max_attempts - 1:
+                time.sleep(2 ** attempt * 1.5)  # backoff
+            continue
 
-    # 3) Try Gemini API
-    gemini_out = call_gemini(prompt)
-    if gemini_out:
-        return gemini_out
+    # ────────────────────────────────────────────────
+    # 2. Fallback: Grok (xAI)
+    # ────────────────────────────────────────────────
+    if grok_client.api_key:
+        try:
+            response = grok_client.chat.completions.create(
+                model=GROK_MODEL,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=900,
+                # reasoning_effort="medium",  # optional: low/medium/high/none (Grok 4+)
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            print(f"Grok failed: {repr(e)}")
+            traceback.print_exc()
 
-    # Final fallback: return the raw news content so the caller can still send something
-    print("DEBUG: All AI providers failed — returning raw news content")
-    raw = "MARKET NEWS:\n" + (market_text or "") + "\n\nPOLITICAL NEWS:\n" + (political_text or "")
-    return raw
+    # ────────────────────────────────────────────────
+    # 3. Fallback: Gemini (native SDK)
+    # ────────────────────────────────────────────────
+    if GEMINI_API_KEY:
+        try:
+            model = genai.GenerativeModel(GEMINI_MODEL)
+            gemini_response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.3,
+                    max_output_tokens=900,
+                )
+            )
+            return gemini_response.text.strip()
+        except Exception as e:
+            print(f"Gemini failed: {repr(e)}")
+            traceback.print_exc()
+
+    # ────────────────────────────────────────────────
+    # Final raw fallback
+    # ────────────────────────────────────────────────
+    print("All LLM providers failed → returning raw concatenated news")
+    return (
+        "MARKET NEWS:\n" + (market_text or "No market news") + "\n\n"
+        "POLITICAL NEWS:\n" + (political_text or "No political news")
+    )
