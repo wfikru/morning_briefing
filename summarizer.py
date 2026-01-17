@@ -14,9 +14,29 @@ GROK_API_URL = os.getenv("GROK_API_URL", "https://api.grok.ai/v1/generate")
 
 def generate_briefing(market_articles, political_articles):
 
-    # Normalize inputs: join lists into strings
-    market_text = "\n".join(market_articles) if isinstance(market_articles, (list, tuple)) else (market_articles or "")
-    political_text = "\n".join(political_articles) if isinstance(political_articles, (list, tuple)) else (political_articles or "")
+    # Normalize inputs: join lists into strings. Articles from news API are dicts.
+    def _to_text(items):
+        if not items:
+            return ""
+        if isinstance(items, (list, tuple)):
+            out = []
+            for it in items:
+                if isinstance(it, dict):
+                    title = it.get("title") or it.get("headline") or ""
+                    desc = it.get("description") or it.get("summary") or ""
+                    if title and desc:
+                        out.append(f"{title} — {desc}")
+                    elif title:
+                        out.append(title)
+                    elif desc:
+                        out.append(desc)
+                else:
+                    out.append(str(it))
+            return "\n".join(out)
+        return str(items)
+
+    market_text = _to_text(market_articles)
+    political_text = _to_text(political_articles)
 
     prompt = f"""
 You are a professional financial news editor. Produce a concise, factual morning briefing for institutional/professional readers.
