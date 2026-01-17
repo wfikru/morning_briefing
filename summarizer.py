@@ -19,13 +19,11 @@ GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-1-fast-reasoning")         # fast &
 
 # Gemini — native SDK (pip install google-generativeai)
 try:
-    import google.generativeai as genai
+    from google import genai  # new unified SDK — pip install google-genai
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")         # excellent 2026 default
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")  # safe 2026 default
 except ImportError:
-    print("WARNING: google-generativeai not installed → Gemini fallback disabled")
+    print("WARNING: google-genai not installed → Gemini fallback disabled")
     GEMINI_API_KEY = None
 
 def estimate_tokens(text: str) -> int:
@@ -138,15 +136,16 @@ Input news:
     # ────────────────────────────────────────────────
     if GEMINI_API_KEY:
         try:
-            model = genai.GenerativeModel(GEMINI_MODEL)
-            gemini_response = model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,               # e.g. "gemini-2.5-flash"
+                contents=prompt,                  # can be str or list of parts
+                config=genai.types.GenerationConfig(
                     temperature=0.3,
                     max_output_tokens=900,
                 )
             )
-            return gemini_response.text.strip()
+            return response.text.strip()  # or response.candidates[0].content.parts[0].text
         except Exception as e:
             print(f"Gemini failed: {repr(e)}")
             traceback.print_exc()
