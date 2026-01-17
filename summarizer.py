@@ -21,7 +21,7 @@ GROK_MODEL = os.getenv("GROK_MODEL", "grok-4-1-fast-reasoning")         # fast &
 try:
     import google.generativeai as genai
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash")  # safe default with models/ prefix
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")  # safe default without models/ prefix for deprecated package
 except ImportError:
     print("WARNING: google-generativeai not installed → Gemini fallback disabled")
     GEMINI_API_KEY = None
