@@ -30,6 +30,8 @@ def get_political_news(newsapi_key):
     return '\n\n'.join(news_items)
 
 def send_to_telegram(bot_token, chat_id, message):
+    print(f"Bot token starts with: {bot_token[:10] if bot_token else 'None'}...")
+    print(f"Chat ID: {chat_id}")
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     params = {
         'chat_id': chat_id,
@@ -37,8 +39,11 @@ def send_to_telegram(bot_token, chat_id, message):
         'parse_mode': 'HTML'  # Optional: For better formatting if needed
     }
     response = requests.post(url, params=params)
+    print(f"Response status: {response.status_code}")
     if response.status_code != 200:
         print("Error sending message:", response.text)
+    else:
+        print("Message sent successfully")
 
 # Replace these with your actual values
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY")
@@ -57,4 +62,7 @@ briefing = (
 
 # Send it
 send_to_telegram(TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID, briefing)
-print("Briefing sent!")  # For console feedback when running manually
+if TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID:
+    print("Briefing sent!")  # For console feedback when running manually
+else:
+    print("Environment variables not set!")
