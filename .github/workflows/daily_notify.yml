@@ -1,22 +1,29 @@
-stages:
-  - briefing
+name: Daily Briefing
 
-morning_briefing:
-  stage: briefing
-  image: python:3.12-slim
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Runs daily at 8:00 AM UTC
+  workflow_dispatch:  # Allows manual triggering
 
-  before_script:
-    - pip install --no-cache-dir -r requirements.txt
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
 
-  script:
-    - python morning_briefing.py   # or python scripts/morning_briefing.py if in subfolder
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: always
-    - when: never                  # ← important: blocks normal commits / MRs / etc.
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
-  # Optional: fail fast if keys are missing
-  # You can also add:
-  #   - test -n "$POLYGON_API_KEY" || (echo "POLYGON_API_KEY missing" && exit 1)
-  #   - test -n "$NEWSAPI_KEY"     || (echo "NEWSAPI_KEY missing"     && exit 1)
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Run morning briefing
+        run: python morning_briefing.py
+        env:
+          POLYGON_API_KEY: ${{ secrets.POLYGON_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
