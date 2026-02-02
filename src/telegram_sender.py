@@ -9,5 +9,3 @@ async def send_to_telegram(message: str):
         chat_id=channel_id,
         text=message
     )
-
-    await bot.session.close()
