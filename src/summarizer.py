@@ -9,87 +9,99 @@ def summarize(news, markets):
     day_of_week = datetime.now().strftime("%A, %B %d, %Y %H:%M")
 
     prompt = f"""
-You are an expert financial Telegram channel designer specializing in high-signal, extremely scannable morning market briefings.
-Transform the provided inputs into two finished Telegram-ready briefings (Version A and Version B) that follow the exact design, tone, and formatting rules below.
-Do NOT output any analysis, commentary, or extra text — return only the two versions clearly labeled "Version A" and "Version B".
+You are a professional financial news editor creating a high-signal Telegram morning briefing for active traders and investors.
 
-Inputs (use as source material):
---- News Items ---
+Using ONLY the inputs provided, generate ONE finished Telegram-ready briefing.
+The summary MUST include BOTH political news and stock market news.
+Political items do NOT need to be market-related unless the connection is explicit.
+DO NOT invent market impact for political news.
+DO NOT include analysis, explanations, meta commentary, or raw inputs.
+Return ONLY the final briefing text.
+
+SOURCE MATERIAL:
+NEWS:
 {chr(10).join(news)}
 
---- Market Items ---
+MARKETS:
 {chr(10).join(markets)}
 
-Top-level requirements:
-- Audience: serious traders and investors. Tone: calm, factual, professional. No hype.
-- Mobile-first: maximize scannability (most readers skim in <12s).
-- Keep total length short (ideal: 18–25 lines). If necessary, be concise.
-- Produce two variants:
-  - Version A: Balanced, clean, professional (default).
-  - Version B: Ultra-compact, ultra-scannable (shorter, denser).
+DATE/TIME:
+{day_of_week}
 
-Formatting and structural rules (follow exactly):
-1) Exact section order:
-   Header line with date and time (very clean)
-   Macro & Political Highlights (3–6 bullets max)
-   Major Indices (table-like with name, value, change)
-   Crypto & Commodities Snapshot (short)
-   Market Sentiment (very short — 1 line ideal)
-   Stocks in Focus (5–7 names max, ordered by % change or importance, highlight top mover)
-   Quick Take / Levels to Watch (1–2 very concise lines)
-   Sources + Disclaimer (tiny single line)
+GLOBAL RULES:
+• Audience: serious traders and investors
+• Tone: calm, factual, professional — no hype
+• Mobile-first: optimized for <12 second skim
+• Total length target: 16–22 lines
+• Prioritize clarity and signal over completeness
+• Use simple Markdown (**bold**, `monospace`)
+• No emojis in price or percentage lines
 
-2) Header:
-   - Must include the date/time exactly as provided: {day_of_week}
-   - Keep header minimal and clean (single line or two lines max).
+REQUIRED STRUCTURE (EXACT ORDER):
 
-3) Political/Macro bullets:
-   - 3–6 bullets max.
-   - Each bullet 8–14 words ideally — short, sourceable claim + direct market implication if relevant.
+1) Header  
+   • Single clean line (max 2 lines)  
+   • Must include the date/time exactly as provided  
 
-4) Major Indices:
-   - Present as a monospace table or aligned code block for numbers.
-   - One row per index: Name | Value | directional symbol + percent change
-   - Use directional arrows: ▲ for up, ▼ for down (never parentheses).
-   - Example row style (use monospaced alignment):
-     `S&P 500     5,123.45   ▲ 0.43%`
+2) Top Summary  
+   • 4–6 bullets TOTAL  
+   • MUST include:
+     – Political developments (domestic or global)
+     – Stock market / macro / asset-class news
+   • Political bullets:
+     – May be standalone (no market angle required)
+   • Market bullets:
+     – Focus on equities, rates, FX, sectors, or flows
+   • Each bullet:
+     – 10–16 words
+     – Factual, sourceable, no speculation
 
-5) Crypto & Commodities:
-   - 2–4 short bullets or 1–2 aligned rows for major assets (BTC, ETH, Gold, Oil).
-   - No emojis in price/percent lines.
+3) Major Indices  
+   • Monospace aligned table or code block  
+   • One row per index  
+   • Format EXACTLY:  
+     Name | Value | ▲/▼ Percent  
+   • Use ▲ for up, ▼ for down  
 
-6) Sentiment:
-   - One short line: overall market tone (e.g., "Risk-On — cautious" or "Risk-Off — defensive").
+4) Crypto & Commodities  
+   • 2–4 short bullets OR aligned rows  
+   • Focus on BTC, ETH, Gold, Oil  
+   • No emojis in numeric lines  
 
-7) Stocks in Focus:
-   - 5–7 tickers/names max.
-   - Order by % move or importance.
-   - Highlight the top mover (bold or a leading ★).
-   - Each line: TICKER — short note (1 clause) — % change (use ▲/▼).
+5) Market Sentiment  
+   • ONE short line only  
+   • Describes overall tone (e.g., “Risk-On — selective”)
 
-8) Quick Take / Levels to Watch:
-   - 1–2 lines only. Very actionable: key levels, catalysts, or headline to watch today.
+6) Stocks in Focus  
+   • 5–7 names MAX  
+   • Ordered by % move or importance  
+   • Highlight the TOP mover using **bold** or ★  
+   • Format:  
+     TICKER — key catalyst or headline — ▲/▼ %  
 
-9) Sources + Disclaimer:
-   - One very small line at the end: "Sources: ... | Disclaimer: Not investment advice."
+7) Quick Take / What to Watch  
+   • 1–2 concise lines  
+   • Key events, levels, or headlines for today  
 
-Visual / stylistic rules:
-- Use at most 4–6 carefully chosen emojis total. No emoji spam.
-- Use thin horizontal separator lines: ───────────────────── between major sections.
-- Use Title Case for section headers.
-- Use monospace-style number alignment (code block or inline backticks) for index/price lines.
-- Percentage changes should use directional symbols: ▲ 0.43% or ▼ 0.43% (no ± sign, no parentheses).
-- No animal or party emojis; avoid decorative emojis. No emojis in price/percent lines.
-- Bold only section headers and the top mover. Italic for small notes if helpful.
-- Keep each bullet/line focused and short.
+8) Sources + Disclaimer  
+   • ONE small line only  
+   • Format:  
+     Sources: … | Disclaimer: Not investment advice  
 
-Output requirements:
-- Produce two clearly labeled sections: "Version A — Balanced" and "Version B — Compact".
-- Each version must follow all the rules above.
-- Do not include the raw prompt, source lists, or any meta commentary in the output.
-- The content should be Telegram-ready plain text using simple Markdown-like formatting: **bold** for headers, `monospace` for numeric alignment, and minimal emojis as allowed.
+STYLE CONSTRAINTS:
+• Use 3–5 emojis TOTAL (max)
+• No animal, party, or decorative emojis
+• Title Case for section headers
+• Bold ONLY:
+  – Section headers
+  – Top stock mover
+• Percentages MUST use ▲ / ▼ symbols
+• No forced correlations or inferred causality
+• Avoid repetition across sections
 
-Now rewrite the briefing using the inputs above. Return only the two versions as the final output.
+FINAL INSTRUCTION:
+Rewrite the briefing using the source material above.
+Return ONLY the finished Telegram-ready briefing.
 """
 
     response = client.chat.completions.create(
