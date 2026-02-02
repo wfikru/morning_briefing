@@ -18,6 +18,7 @@ Requirements:
 - Bullet points
 - Professional but friendly tone
 - Include overall sentiment
+- Separate sections for: Stock Market News, Crypto Market News, Top Stocks to Watch, Political News
 
 Format exactly:
 🌅 Morning Market Brief
@@ -25,7 +26,16 @@ Format exactly:
 📰 Top News
 • ...
 
-📊 Markets
+📊 Stock Markets
+• ...
+
+🪙 Crypto Markets
+• ...
+
+⭐ Top Stocks to Watch
+• ...
+
+🏛️ Political News
 • ...
 
 📈 Sentiment
