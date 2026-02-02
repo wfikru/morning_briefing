@@ -1,5 +1,4 @@
 import os
-import asyncio
 from telegram import Bot
 
 async def send_to_telegram(message: str):
